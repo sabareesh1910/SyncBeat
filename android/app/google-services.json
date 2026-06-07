@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "628853977577",
+    "project_id": "syncbeat-97a8a",
+    "storage_bucket": "syncbeat-97a8a.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:628853977577:android:3564d4f620c7be121d9b78",
+        "android_client_info": {
+          "package_name": "com.syncbeat"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyC5zS6vu98_LeOYtIaUFoK5gCZUsLK9y3w"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

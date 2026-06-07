@@ -1,0 +1,35 @@
+# Dependencies
+node_modules/
+
+# React Native / Metro
+.metro-health-check*
+
+# Android build outputs
+android/.gradle/
+android/build/
+android/app/build/
+android/app/src/main/assets/index.android.bundle
+android/app/src/main/res/drawable-*/node_modules_*
+android/app/src/main/res/raw/
+
+# Release artifacts and signing keys
+*.apk
+*.aab
+*.keystore
+*.jks
+
+# Local environment
+.env
+.env.*
+android/local.properties
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
