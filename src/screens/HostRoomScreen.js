@@ -246,8 +246,7 @@ export default function HostRoomScreen({navigation}) {
           listenerCandidates: [],
         });
 
-      // FIX #1: createHostPeerConnection is now async (fetches TURN credentials).
-      const pc = await createHostPeerConnection({
+      const pc = createHostPeerConnection({
         audioStream: audioStream.current,
         onIceCandidate: candidate => saveHostCandidate(roomCode, listenerUid, candidate),
         onConnectionStateChange: state => {

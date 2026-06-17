@@ -68,8 +68,7 @@ export default function ListenerRoomScreen({route, navigation}) {
           .collection('rooms').doc(roomCode).collection('requests').doc(uid)
           .update({connectionDebug: 'listener_creating_peer'});
 
-        // FIX #1: createListenerPeerConnection is now async (fetches TURN creds).
-        const peerConn = await createListenerPeerConnection({
+        const peerConn = createListenerPeerConnection({
           onIceCandidate: candidate => saveListenerCandidate(roomCode, uid, candidate),
           onTrack: _stream => setStatus(STATUS.CONNECTED),
           onConnectionStateChange: state => {
