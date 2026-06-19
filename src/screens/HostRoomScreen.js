@@ -207,13 +207,24 @@ export default function HostRoomScreen({navigation}) {
   const startStreaming = async () => {
     setLoading(true);
     try {
+      // Android 11+ expects the mediaProjection foreground service to be
+      // active before the display/audio capture request starts.
+      NativeModules.AudioCaptureEvent?.startService?.();
+      await new Promise(resolve => setTimeout(resolve, 400));
+
       const stream = await getSystemAudioStream();
       audioStream.current = stream;
       setIsStreaming(true);
-      await firestore().collection('rooms').doc(roomCode).update({streaming: true});
+      await firestore().collection('rooms').doc(roomCode)
+        .update({streaming: true});
     } catch (e) {
-      Alert.alert('Permission Required',
-        'SyncBeat needs permission to capture your device audio.\nPlease tap "Start Now" when Android asks.');
+      NativeModules.AudioCaptureEvent?.stopService?.();
+      Alert.alert(
+        'Permission Required',
+        'SyncBeat needs permission to capture your device audio.\n\n' +
+        'When Android shows the "Start capturing?" dialog, tap "Start Now".\n\n' +
+        e.message,
+      );
     } finally {
       setLoading(false);
     }

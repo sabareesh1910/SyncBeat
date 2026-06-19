@@ -19,6 +19,7 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.os.Build
 import androidx.localbroadcastmanager.content.LocalBroadcastManager
 import com.facebook.react.bridge.ReactApplicationContext
 import com.facebook.react.bridge.ReactContextBaseJavaModule
@@ -63,6 +64,26 @@ class AudioCaptureEventModule(private val reactContext: ReactApplicationContext)
                 LocalBroadcastManager.getInstance(reactContext).unregisterReceiver(receiver)
             } catch (_: Exception) {}
         }
+    }
+
+    @ReactMethod
+    fun startService() {
+        val intent = Intent(reactContext, AudioCaptureService::class.java).apply {
+            action = AudioCaptureService.ACTION_START
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            reactContext.startForegroundService(intent)
+        } else {
+            reactContext.startService(intent)
+        }
+    }
+
+    @ReactMethod
+    fun stopService() {
+        val intent = Intent(reactContext, AudioCaptureService::class.java).apply {
+            action = AudioCaptureService.ACTION_STOP
+        }
+        reactContext.startService(intent)
     }
 
     private fun sendEvent(eventName: String, params: Any?) {

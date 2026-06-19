@@ -1,11 +1,8 @@
-import {NativeModules, NativeEventEmitter} from 'react-native';
 import {
   RTCPeerConnection,
   RTCSessionDescription,
   RTCIceCandidate,
   mediaDevices,
-  MediaStream,
-  MediaStreamTrack,
 } from 'react-native-webrtc';
 
 // ── ICE Configuration ────────────────────────────────────────────
@@ -119,27 +116,39 @@ const RTC_CONFIG = {
 // ── SYSTEM AUDIO CAPTURE ────────────────────────────────────────────────────
 
 export async function getSystemAudioStream() {
-  const {SystemAudioCapture} = NativeModules;
-  if (!SystemAudioCapture) {
-    throw new Error('SystemAudioCapture native module not found. Is the app rebuilt?');
-  }
-  // Request MediaProjection permission — shows the Android "Start capturing?" dialog.
-  await SystemAudioCapture.requestCapture();
+  try {
+    const stream = await mediaDevices.getDisplayMedia({
+      video: false,
+      audio: {
+        echoCancellation:     false,
+        noiseSuppression:     false,
+        autoGainControl:      false,
+        googEchoCancellation: false,
+        googNoiseSuppression: false,
+        googAutoGainControl:  false,
+        googHighpassFilter:   false,
+      },
+    });
 
-  // Use getUserMedia with a real audio constraint so WebRTC
-  // creates a valid local audio track to send to listeners.
-  // The actual audio content will come from the system capture above.
-  const stream = await mediaDevices.getUserMedia({
-    audio: {
-      echoCancellation: false,
-      noiseSuppression: false,
-      autoGainControl:  false,
-      sampleRate:       44100,
-      channelCount:     2,
-    },
-    video: false,
-  });
-  return stream;
+    if (!stream) {
+      throw new Error('No stream returned from getDisplayMedia.');
+    }
+
+    const audioTracks = stream.getAudioTracks();
+    if (!audioTracks || audioTracks.length === 0) {
+      throw new Error(
+        'No audio track in stream. Tap "Start Now" when Android asks.'
+      );
+    }
+
+    return stream;
+  } catch (e) {
+    throw new Error(
+      'Could not capture system audio. ' +
+      'Tap "Start Now" when Android shows the permission dialog. ' +
+      'Detail: ' + e.message
+    );
+  }
 }
 
 // ── ICE candidate buffer helpers ─────────────────────────────────────────────
