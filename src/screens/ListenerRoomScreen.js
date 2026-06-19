@@ -11,11 +11,12 @@
 
 import React, {useEffect, useRef, useState, useCallback} from 'react';
 import {
-  View, Text, TouchableOpacity, StyleSheet, Alert, BackHandler,
+  View, Text, TouchableOpacity, StyleSheet, Alert, BackHandler, NativeModules,
 } from 'react-native';
 import {SafeAreaView} from 'react-native-safe-area-context';
 import firestore from '@react-native-firebase/firestore';
 import auth from '@react-native-firebase/auth';
+import InCallManager from 'react-native-incall-manager';
 
 import {
   createListenerPeerConnection,
@@ -55,6 +56,7 @@ export default function ListenerRoomScreen({route, navigation}) {
   const cleanedUp      = useRef(false);
   const iceTimeout     = useRef(null); // FIX #11
   const cleanupRef     = useRef(null); // FIX #8
+  const remoteStream = useRef(null);
 
   const uid = auth().currentUser?.uid;
 
@@ -70,7 +72,9 @@ export default function ListenerRoomScreen({route, navigation}) {
 
         const peerConn = createListenerPeerConnection({
           onIceCandidate: candidate => saveListenerCandidate(roomCode, uid, candidate),
-          onTrack: _stream => setStatus(STATUS.CONNECTED),
+          onTrack: stream => {
+            remoteStream.current = stream;
+          },
           onConnectionStateChange: state => {
             firestore()
               .collection('rooms').doc(roomCode).collection('requests').doc(uid)
@@ -80,9 +84,16 @@ export default function ListenerRoomScreen({route, navigation}) {
             if (state === 'connected') {
               // FIX #11: Clear ICE timeout on success.
               clearTimeout(iceTimeout.current);
+              // Route audio to speaker and keep audio session alive
+              InCallManager.start({media: 'audio'});
+              InCallManager.setForceSpeakerphoneOn(true);
+              // Start foreground service so Android keeps us alive in background
+              NativeModules.ListenerService?.start(roomCode);
               setStatus(STATUS.CONNECTED);
             } else if (state === 'disconnected' || state === 'failed') {
               clearTimeout(iceTimeout.current);
+              InCallManager.stop();
+              NativeModules.ListenerService?.stop();
               setStatus(STATUS.DISCONNECTED);
             }
           },
@@ -196,6 +207,9 @@ export default function ListenerRoomScreen({route, navigation}) {
     signalingUnsubs.current = [];
     closePeerConnection(pc.current);
     pc.current = null;
+    NativeModules.ListenerService?.stop();
+    try { InCallManager.stop(); } catch (_) {}
+    remoteStream.current = null;
 
     try {
       await clearListenerSignaling(roomCode, uid);

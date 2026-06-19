@@ -17,6 +17,7 @@
     <!-- System audio capture via MediaProjection (Android 10+) -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PROJECTION" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
 
     <!-- Keep CPU + audio alive when screen is off -->
     <uses-permission android:name="android.permission.WAKE_LOCK" />
@@ -55,6 +56,11 @@
         <service
             android:name=".services.AudioCaptureService"
             android:foregroundServiceType="mediaProjection"
+            android:exported="false" />
+
+        <service
+            android:name=".services.ListenerService"
+            android:foregroundServiceType="mediaPlayback"
             android:exported="false" />
 
     </application>

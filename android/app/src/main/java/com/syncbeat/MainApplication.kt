@@ -17,6 +17,8 @@ import com.facebook.react.defaults.DefaultReactHost.getDefaultReactHost
 import com.facebook.react.defaults.DefaultReactNativeHost
 import com.facebook.soloader.SoLoader
 import com.syncbeat.modules.AudioCaptureEventPackage
+import com.syncbeat.modules.SystemAudioPackage
+import com.syncbeat.modules.ListenerServicePackage
 
 class MainApplication : Application(), ReactApplication {
 
@@ -26,6 +28,8 @@ class MainApplication : Application(), ReactApplication {
                 PackageList(this).packages + listOf(
                     // FIX #4 + #16: Register the native event bridge module.
                     AudioCaptureEventPackage(),
+                    SystemAudioPackage(),
+                    ListenerServicePackage(),
                 )
 
             override fun getJSMainModuleName(): String = "index"

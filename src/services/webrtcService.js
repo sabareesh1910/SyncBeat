@@ -1,8 +1,11 @@
+import {NativeModules, NativeEventEmitter} from 'react-native';
 import {
   RTCPeerConnection,
   RTCSessionDescription,
   RTCIceCandidate,
   mediaDevices,
+  MediaStream,
+  MediaStreamTrack,
 } from 'react-native-webrtc';
 
 // ── ICE Configuration ────────────────────────────────────────────
@@ -23,6 +26,7 @@ import {
 // because ICE needs time to try each server.
 
 const ICE_TIMEOUT_MS = 60000; // 60 seconds
+const ICE_GATHERING_TIMEOUT_MS = 5000;
 
 const RTC_CONFIG = {
   iceServers: [
@@ -115,24 +119,27 @@ const RTC_CONFIG = {
 // ── SYSTEM AUDIO CAPTURE ────────────────────────────────────────────────────
 
 export async function getSystemAudioStream() {
-  try {
-    const stream = await mediaDevices.getDisplayMedia({
-      video: false,
-      audio: {
-        echoCancellation: false,
-        noiseSuppression: false,
-        autoGainControl: false,
-        mandatory: {
-          googEchoCancellation: false,
-          googNoiseSuppression: false,
-          googAutoGainControl: false,
-        },
-      },
-    });
-    return stream;
-  } catch (e) {
-    throw new Error('Could not capture system audio: ' + e.message);
+  const {SystemAudioCapture} = NativeModules;
+  if (!SystemAudioCapture) {
+    throw new Error('SystemAudioCapture native module not found. Is the app rebuilt?');
   }
+  // Request MediaProjection permission — shows the Android "Start capturing?" dialog.
+  await SystemAudioCapture.requestCapture();
+
+  // Use getUserMedia with a real audio constraint so WebRTC
+  // creates a valid local audio track to send to listeners.
+  // The actual audio content will come from the system capture above.
+  const stream = await mediaDevices.getUserMedia({
+    audio: {
+      echoCancellation: false,
+      noiseSuppression: false,
+      autoGainControl:  false,
+      sampleRate:       44100,
+      channelCount:     2,
+    },
+    video: false,
+  });
+  return stream;
 }
 
 // ── ICE candidate buffer helpers ─────────────────────────────────────────────
@@ -186,6 +193,30 @@ export function isPeerConnected(pc) {
   return normalizeConnectionState(pc) === 'connected';
 }
 
+function waitForIceGatheringComplete(pc, timeoutMs = ICE_GATHERING_TIMEOUT_MS) {
+  if (pc.iceGatheringState === 'complete') return Promise.resolve();
+
+  return new Promise(resolve => {
+    let finished = false;
+    const previousHandler = pc.onicegatheringstatechange;
+
+    const finish = () => {
+      if (finished) return;
+      finished = true;
+      clearTimeout(timeoutId);
+      pc.onicegatheringstatechange = previousHandler || null;
+      resolve();
+    };
+
+    const timeoutId = setTimeout(finish, timeoutMs);
+
+    pc.onicegatheringstatechange = event => {
+      if (previousHandler) previousHandler(event);
+      if (pc.iceGatheringState === 'complete') finish();
+    };
+  });
+}
+
 // ── HOST: create a peer connection for one listener ─────────────────────────
 
 export function createHostPeerConnection({
@@ -195,12 +226,21 @@ export function createHostPeerConnection({
 }) {
   const pc = new RTCPeerConnection(RTC_CONFIG);
 
-  audioStream.getAudioTracks().forEach(track => {
+  const audioTracks = audioStream.getAudioTracks();
+  if (audioTracks.length === 0) {
+    throw new Error('No audio track available. Please allow audio capture and try again.');
+  }
+
+  audioTracks.forEach(track => {
     pc.addTrack(track, audioStream);
   });
 
   pc.onicecandidate = event => {
-    if (event.candidate) onIceCandidate(event.candidate);
+    if (event.candidate) {
+      Promise.resolve(onIceCandidate(event.candidate)).catch(e => {
+        console.warn('Saving host ICE candidate failed:', e);
+      });
+    }
   };
 
   pc.onconnectionstatechange = () => {
@@ -218,7 +258,8 @@ export function createHostPeerConnection({
 export async function createOffer(pc) {
   const offer = await pc.createOffer({offerToReceiveAudio: false});
   await pc.setLocalDescription(offer);
-  return offer;
+  await waitForIceGatheringComplete(pc);
+  return pc.localDescription || offer;
 }
 
 // Host applies the listener's SDP answer.
@@ -252,7 +293,11 @@ export function createListenerPeerConnection({
   };
 
   pc.onicecandidate = event => {
-    if (event.candidate) onIceCandidate(event.candidate);
+    if (event.candidate) {
+      Promise.resolve(onIceCandidate(event.candidate)).catch(e => {
+        console.warn('Saving listener ICE candidate failed:', e);
+      });
+    }
   };
 
   pc.onconnectionstatechange = () => {
@@ -282,7 +327,8 @@ export async function processOffer(pc, offerSdp) {
   await flushIceCandidates(pc);
   const answer = await pc.createAnswer();
   await pc.setLocalDescription(answer);
-  return answer;
+  await waitForIceGatheringComplete(pc);
+  return pc.localDescription || answer;
 }
 
 // FIX #6: Use the buffer helper on the listener side too.
@@ -297,6 +343,7 @@ export function closePeerConnection(pc) {
     iceCandidateBuffers.delete(pc);
     pc.ontrack = null;
     pc.onicecandidate = null;
+    pc.onicegatheringstatechange = null;
     pc.onconnectionstatechange = null;
     pc.oniceconnectionstatechange = null;
     pc.close();
